@@ -128,7 +128,7 @@
     // Carregamento do mapa + dados
     $.when(
       $.get("https://cdn.jsdelivr.net/gh/apache/echarts-website@asf-site/examples/data/asset/geo/world.json"),
-      fetch("/BR-exportacoes_importacoes_2025.json").then(r => r.json())
+      fetch("BR-exportacoes_importacoes_2025.json").then(r => r.json())
     ).done((mapData, dados) => {
       echarts.registerMap("world", mapData[0]);
       dadosComercio = dados;
