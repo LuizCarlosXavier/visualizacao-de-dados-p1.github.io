@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR" style="height: 100%">
+<head>
+  <meta charset="utf-8">
+  <title>Exportações e Importações do Brasil</title>
+  <script src="https://echarts.apache.org/en/js/vendors/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://fastly.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+
+<body style="height: 100%; margin: 0; display: flex; flex-direction: column;">
+  <div style="padding: 10px; display: flex; justify-content: flex-end;">
+    <select id="tipoDado">
+      <option value="EXP">Exportações</option>
+      <option value="IMP" selected>Importações</option>
+      <option value="BAL">Balança Comercial</option>
+    </select>
+  </div>
+
+  <!-- Mapa -->
+  <div id="mapa" style="height: 60%;"></div>
+  <!-- Linha histórica -->
+  <div id="historico" style="height: 40%;"></div>
+
+  <script>
+    const domMapa = document.getElementById('mapa');
+    const graficoMapa = echarts.init(domMapa);
+
+    const domHistorico = document.getElementById('historico');
+    const graficoHistorico = echarts.init(domHistorico);
+
+    let dadosComercio = null;
+    let anoAtual = "2025";
+
+    function atualizarMapa(tipo) {
+      if (!dadosComercio) return;
+
+      const titulos = {
+        EXP: 'Volume de Exportações do Brasil',
+        IMP: 'Volume de Importações do Brasil',
+        BAL: 'Balança Comercial do Brasil'
+      };
+
+      const dados = dadosComercio[tipo][anoAtual].map(p => ({
+        name: p.name,
+        value: p.us_value
+      }));
+
+      const valores = dados.map(d => d.value).filter(v => v != null);
+      const minVal = Math.min(...valores);
+      const maxVal = Math.max(...valores);
+
+      graficoMapa.setOption({
+        title: {
+          text: `${titulos[tipo]} (Ano ${anoAtual})`,
+          subtext: "Fonte: Monitor do Comércio Exterior Brasileiro",
+          left: "center",
+          top: 10
+        },
+        tooltip: {
+          trigger: "item",
+          formatter: p => p.value
+            ? `${p.name}<br/>US$ ${p.value.toLocaleString("pt-BR")} bi`
+            : `${p.name}<br/>Sem dados`
+        },
+        visualMap: {
+          min: minVal,
+          max: maxVal,
+          left: "right",
+          top: "center",
+          calculable: true,
+          inRange: {
+            color: tipo === "BAL"
+              ? ['#d73027', '#fee090', '#4575b4']
+              : ['#e0f3f8', '#005824']
+          },
+          text: ["Maior", "Menor"]
+        },
+        series: [{
+          type: "map",
+          map: "world",
+          roam: false,
+          emphasis: { label: { show: false } },
+          data: dados
+        }]
+      });
+    }
+
+    function atualizarHistorico() {
+      const anos = Object.keys(dadosComercio.EXP);
+      const exp = anos.map(a => dadosComercio.EXP[a].reduce((s, p) => s + p.us_value, 0));
+      const imp = anos.map(a => dadosComercio.IMP[a].reduce((s, p) => s + p.us_value, 0));
+      const bal = exp.map((v, i) => v - imp[i]);
+
+      graficoHistorico.setOption({
+        title: {
+          text: "Totais por ano",
+          left: "center"
+        },
+        tooltip: { trigger: "axis" },
+        legend: {
+          data: ["Exportações", "Importações", "Balança Comercial"],
+          bottom: 0
+        },
+        xAxis: {
+          type: "category",
+          data: anos
+        },
+        yAxis: {
+          type: "value",
+          name: "Bilhões de US$"
+        },
+        series: [
+          { name: "Exportações", type: "line", data: exp },
+          { name: "Importações", type: "line", data: imp },
+          { name: "Balança Comercial", type: "line", data: bal }
+        ],
+        dataZoom: [
+            {
+            type: 'slider',       // tipo slider (barra de zoom)
+            xAxisIndex: 0,        // aplica no eixo X
+            start: 0,             // início da seleção (%)
+            end: 100              // fim da seleção (%)
+            }
+        ]
+      });
+    }
+
+    // Carregamento do mapa + dados
+    $.when(
+      $.get("https://cdn.jsdelivr.net/gh/apache/echarts-website@asf-site/examples/data/asset/geo/world.json"),
+      fetch("/BR-exportacoes_importacoes_2025.json").then(r => r.json())
+    ).done((mapData, dados) => {
+      echarts.registerMap("world", mapData[0]);
+      dadosComercio = dados;
+
+      atualizarMapa("IMP");
+      atualizarHistorico();
+
+      document.getElementById("tipoDado").addEventListener("change", e => {
+        atualizarMapa(e.target.value);
+      });
+    });
+  </script>
+</body>
+</html>
